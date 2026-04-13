@@ -2,6 +2,8 @@
 
 A macOS menu bar app that watches how you work and documents your workflows.
 
+![Patina menu bar](docs/screenshot.png)
+
 Patina reads the accessibility tree (the same data VoiceOver uses) to observe which apps you switch between, what windows you open, and what UI elements you interact with. After accumulating observations, it sends structured metadata to a cloud LLM to detect repeating patterns and generate workflow documentation.
 
 ## What it observes
