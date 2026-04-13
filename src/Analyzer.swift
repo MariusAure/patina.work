@@ -184,12 +184,27 @@ final class WorkflowAnalyzer {
         let totalSwitches = observations.filter { $0.eventType == "app_switch" }.count
         let totalFocusChanges = observations.filter { $0.eventType == "focus_change" }.count
 
+        // Build app transition matrix (how many times user went from App A → App B)
+        var transitions: [String: [String: Int]] = [:]
+        var prevApp: String? = nil
+        for obs in observations where obs.eventType == "app_switch" {
+            let app = obs.appName
+            if let prev = prevApp, prev != app {
+                transitions[prev, default: [:]][app, default: 0] += 1
+            }
+            prevApp = app
+        }
+        let transitionLines = transitions.flatMap { from, tos in
+            tos.map { to, count in (from, to, count) }
+        }.sorted { $0.2 > $1.2 }.prefix(15).map { "\($0.0) → \($0.1): \($0.2)x" }
+        let transitionBlock = transitionLines.isEmpty ? "" : "\n- Top app transitions: \(transitionLines.joined(separator: ", "))"
+
         let summary = """
         Summary:
         - Time window: \(firstTimestamp) to \(lastTimestamp) (\(windowMinutes) minutes)
         - Apps used (by time): \(appsLine)
         - Total app switches: \(totalSwitches)
-        - Focus changes: \(totalFocusChanges)
+        - Focus changes: \(totalFocusChanges)\(transitionBlock)
         """
 
         // Build observation lines with dwell time and data summary
@@ -234,6 +249,8 @@ final class WorkflowAnalyzer {
 
         Detect patterns that are ACTIONABLE — things the user could automate, streamline, or change.
 
+        Use the transition matrix in the Summary to find multi-app loops. High counts (e.g. "Chrome → Claude: 50x") indicate a repeating loop. Reconstruct the full cycle (A → B → C → A) and estimate how many times it repeated.
+
         GOOD patterns (report these):
         - "User copies data from App A to App B manually every time" → automation candidate
         - "User checks email every 3 minutes, interrupting deep work" → behavior insight
@@ -241,6 +258,7 @@ final class WorkflowAnalyzer {
         - "User spends 15 minutes navigating settings repeatedly" → setup/config issue
         - "clipboard_change events show data flowing from App A → App B" → data flow pattern
         - "Same data type entered in multiple apps" → redundant data entry
+        - "A → B → C → A loop repeated N times" → multi-app loop
 
         BAD patterns (do NOT report these):
         - "User switches between App A and App B" — obvious, not actionable
@@ -433,6 +451,13 @@ final class WorkflowAnalyzer {
                                costUSD: costUSD, responseJSON: content)
 
             print("[Analyzer] Batch #\(batchId) complete: \(patterns.count) patterns detected, cost: $\(String(format: "%.6f", costUSD ?? 0))")
+
+            // First-insight notification: one-time, after the first analysis that finds patterns
+            if !patterns.isEmpty, let best = patterns.max(by: { ($0.confidence ?? 0) < ($1.confidence ?? 0) }) {
+                let obsCount = (try? db.observationCount()) ?? 0
+                let appCount = db.distinctAppNames().count
+                notifier?.notifyFirstInsight(patternName: best.name ?? "Unnamed", observationCount: obsCount, appCount: appCount)
+            }
 
             // Notify user of new patterns
             for p in patterns {

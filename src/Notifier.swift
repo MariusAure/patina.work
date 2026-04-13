@@ -2,19 +2,20 @@ import Foundation
 import UserNotifications
 
 /// Delivers macOS notifications for detected patterns.
-/// Rate-limited to maxPerDay (default 2). Tracks daily count in settings DB.
+/// Rate-limited to one per minIntervalMinutes (default 20). Tracks last send time in settings DB.
 final class PatternNotifier: NSObject, UNUserNotificationCenterDelegate {
     private let db: PatinaDatabase
-    private let maxPerDay: Int
+    private let minIntervalSeconds: TimeInterval
     private var center: UNUserNotificationCenter?
     private let launchTime = Date()
 
     /// Minutes after launch before pattern notifications are sent.
-    static let quietPeriodMinutes: Int = 240
+    /// Short settling period to avoid notifying during install/onboarding.
+    static let quietPeriodMinutes: Int = 5
 
-    init(db: PatinaDatabase, maxPerDay: Int = 2) {
+    init(db: PatinaDatabase, minIntervalMinutes: Int = 20) {
         self.db = db
-        self.maxPerDay = maxPerDay
+        self.minIntervalSeconds = Double(minIntervalMinutes) * 60
         super.init()
         // UNUserNotificationCenter.current() crashes if binary is not inside a .app bundle
         // (bundleProxyForCurrentProcess is nil). Guard against this.
@@ -47,8 +48,8 @@ final class PatternNotifier: NSObject, UNUserNotificationCenterDelegate {
             return
         }
 
-        guard !dailyLimitReached() else {
-            print("[Notifier] Daily limit (\(maxPerDay)) reached — skipping")
+        guard !cooldownActive() else {
+            print("[Notifier] Cooldown active (\(Int(minIntervalSeconds/60))m interval) — skipping")
             return
         }
 
@@ -68,7 +69,7 @@ final class PatternNotifier: NSObject, UNUserNotificationCenterDelegate {
 
     /// Send a summary notification (e.g., end of first observation session).
     func notifySummary(observationCount: Int, appCount: Int) {
-        guard !dailyLimitReached() else { return }
+        guard !cooldownActive() else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "Patina"
@@ -76,6 +77,36 @@ final class PatternNotifier: NSObject, UNUserNotificationCenterDelegate {
         content.sound = .default
 
         deliverIfAuthorized(content: content, identifier: "patina-summary-\(UUID().uuidString)")
+    }
+
+    /// First-insight notification. Fires once, after the first analysis that finds patterns.
+    func notifyFirstInsight(patternName: String, observationCount: Int, appCount: Int) {
+        let alreadySent = db.getSetting("first_insight_sent") == "1"
+        guard !alreadySent else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Patina"
+        content.body = "Your first pattern: \"\(patternName)\". \(observationCount) observations across \(appCount) apps."
+        content.sound = .default
+
+        deliverIfAuthorized(content: content, identifier: "patina-first-insight")
+        db.setSetting("first_insight_sent", "1")
+    }
+
+    /// Notify that the free trial analysis quota is used up.
+    func notifyTrialExhausted(patternCount: Int) {
+        guard !cooldownActive() else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Patina"
+        if patternCount > 0 {
+            content.body = "You have \(patternCount) patterns. Free trial analysis is complete — buy a license to continue."
+        } else {
+            content.body = "Free trial analysis is complete. Buy a license to unlock pattern detection."
+        }
+        content.sound = .default
+
+        deliverIfAuthorized(content: content, identifier: "patina-trial-\(UUID().uuidString)")
     }
 
     // MARK: - Delivery with lazy auth check
@@ -97,7 +128,7 @@ final class PatternNotifier: NSObject, UNUserNotificationCenterDelegate {
                     print("[Notifier] Delivery error: \(error.localizedDescription)")
                 } else {
                     print("[Notifier] Sent: \(content.body)")
-                    self?.incrementDailyCount()
+                    self?.recordSendTime()
                 }
             }
         }
@@ -105,23 +136,16 @@ final class PatternNotifier: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - Rate limiting
 
-    private func todayKey() -> String {
-        let cal = Calendar(identifier: .gregorian)
-        var utc = cal
-        utc.timeZone = TimeZone(identifier: "UTC")!
-        let comps = utc.dateComponents([.year, .month, .day], from: Date())
-        return String(format: "notif_count_%04d-%02d-%02d", comps.year!, comps.month!, comps.day!)
+    private static let lastNotifKey = "last_notif_time"
+
+    private func cooldownActive() -> Bool {
+        guard let raw = db.getSetting(Self.lastNotifKey),
+              let last = Double(raw) else { return false }
+        return Date().timeIntervalSince1970 - last < minIntervalSeconds
     }
 
-    private func dailyLimitReached() -> Bool {
-        let count = Int(db.getSetting(todayKey()) ?? "0") ?? 0
-        return count >= maxPerDay
-    }
-
-    private func incrementDailyCount() {
-        let key = todayKey()
-        let count = (Int(db.getSetting(key) ?? "0") ?? 0) + 1
-        db.setSetting(key, String(count))
+    private func recordSendTime() {
+        db.setSetting(Self.lastNotifKey, String(Date().timeIntervalSince1970))
     }
 
     // MARK: - UNUserNotificationCenterDelegate

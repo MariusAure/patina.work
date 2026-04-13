@@ -99,16 +99,17 @@ class PatinaAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// After 4 hours, send a summary notification if this is the first day.
-    /// Designer spec: "After 4 hours of observation, before any API call for pattern detection,
-    /// show the user their raw observations."
+    /// Fallback notification at 90 minutes if no patterns found yet.
+    /// The primary path is notifyFirstInsight (triggered by Analyzer after first patterns).
+    /// This catches the case where analysis ran but found nothing — still show the user we're alive.
     private func scheduleFirstSessionSummary(db: PatinaDatabase, notifier: PatternNotifier) {
-        let alreadySent = db.getSetting("first_summary_sent") == "1"
+        let alreadySent = db.getSetting("first_insight_sent") == "1" || db.getSetting("first_summary_sent") == "1"
         guard !alreadySent else { return }
 
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 4 * 60 * 60) {
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 90 * 60) {
+            guard db.getSetting("first_insight_sent") != "1" else { return }
             let stats = (try? db.observationCount()) ?? 0
-            guard stats >= 20 else { return } // Don't notify if barely any data
+            guard stats >= 20 else { return }
             let apps = db.distinctAppNames().count
             notifier.notifySummary(observationCount: stats, appCount: apps)
             db.setSetting("first_summary_sent", "1")
