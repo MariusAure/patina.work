@@ -1,10 +1,10 @@
 # Patina
 
-A macOS menu bar app that watches how you work and documents your workflows.
+A macOS app that watches how you work, learns your patterns, and tells you when it can do a task for you.
 
-<img src="docs/screenshot.png" alt="Patina menu bar" width="300">
+<img src="docs/screenshot.png" alt="Patina menu bar" width="200">
 
-Patina reads the accessibility tree on your Mac to observe which apps you switch between, what windows you open, and what UI elements you interact with. After gathering observations, it sends structured metadata to a cloud LLM (or your own LLM if you want) to detect repeating patterns and generate workflow documentation. The plan is for this to then suggest workflow improvements and even ask to step in a do tasks it is confident that it can do it self.
+Patina reads the accessibility tree to observe which apps you use, what you click, and what you repeat. It sends structured metadata to a cloud LLM to detect patterns. When it is confident it can perform a step, it asks. You say yes or no. The human never prompts — the AI volunteers.
 
 ## What it observes
 
