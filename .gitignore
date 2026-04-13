@@ -1,0 +1,14 @@
+# Build output
+patina
+Patina.app/
+*.tar.gz
+*.zip
+.build/
+
+# OS
+.DS_Store
+
+# Data & secrets
+*.db
+*.log
+.env*
