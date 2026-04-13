@@ -4,7 +4,7 @@ A macOS app that watches how you work, learns your patterns, and tells you when 
 
 <img src="docs/screenshot.png" alt="Patina menu bar" width="200">
 
-Patina reads the accessibility tree to observe which apps you use, what you click, and what you repeat. It sends structured metadata to a cloud LLM to detect patterns. When it is confident it can perform a step, it asks. You say yes or no. The human never prompts — the AI volunteers.
+Patina reads the accessibility tree to observe which apps you use, what you click, and what you repeat. It sends structured metadata to a cloud LLM to detect patterns. When it is confident it can perform a step, it asks. You say yes or no — and then it does it. The human never prompts. The AI volunteers.
 
 ## What it observes
 
