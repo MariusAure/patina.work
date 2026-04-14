@@ -49,17 +49,27 @@ The build uses `swiftc` directly. No Xcode project, no SPM fetch, no dependencie
 
 ## Install from release
 
-Read [`install.sh`](install.sh) first. It downloads a tarball from GitHub Releases, unpacks to `/Applications`, and removes quarantine.
+Download from [patina.work](https://patina.work). The page publishes the current binary and a SHA-256 file next to it.
+
+Verify the download before you open it:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MariusAure/patina.work/main/install.sh | bash
+cd ~/Downloads
+shasum -a 256 -c patina-0.1.0-arm64.zip.sha256
+# expect: patina-0.1.0-arm64.zip: OK
 ```
 
-The app is unsigned. macOS will block it. After installing:
+The app is currently unsigned. Code-signing and notarization are in progress. Until they land, the SHA-256 file is the only proof that the binary you downloaded is the binary the site served — it does **not** prove the binary matches the source in this repo. Reproducible builds are not wired up yet.
 
-1. System Settings > Privacy & Security > scroll down > "Open Anyway"
-2. Grant Accessibility access when prompted
-3. Look for the dot in your menu bar
+After download:
+
+1. `unzip patina-0.1.0-arm64.zip`
+2. Move `Patina.app` to `/Applications`
+3. Right-click the app → Open (first launch only, because it is unsigned)
+4. Grant Accessibility access when prompted
+5. Look for the dot in your menu bar
+
+If you want to avoid the unsigned binary entirely, build from source (section above).
 
 ## Architecture
 
