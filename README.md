@@ -9,9 +9,10 @@ Patina reads the accessibility tree to observe which apps you use, what you clic
 ## What it observes
 
 - Which app is active (bundle ID and name)
-- Window titles (file paths and URLs stripped before storage)
+- Window titles (credentials redacted, file paths collapsed before transmission)
 - Focused UI element role and label (e.g. "button: Save", "text_field: Invoice Number")
 - Timestamps and app switch events
+- **Browser URL of the focused tab** — off by default. When you turn on "Capture Browser URLs" in the Data Capture menu, Patina reads the URL of the focused tab in Safari, Safari Technology Preview, Chrome, Chrome Canary, Brave, Edge, Arc, and Firefox via the macOS accessibility API. Query strings, usernames, and passwords are stripped at capture; path and fragment are kept.
 
 ## What it does not observe
 
@@ -23,15 +24,30 @@ Patina reads the accessibility tree to observe which apps you use, what you clic
 
 ## What leaves your Mac
 
-Nothing, until you configure analysis. With a license key or Together AI API key:
+Nothing, until you configure analysis. With a trial, license, or your own API key, the analyzer sends a sanitized observation summary to a cloud LLM (Together AI by default). The summary contains:
 
-- App names, element roles, element labels, window titles (sanitized), event types, and timestamps are sent to Together AI for pattern detection
-- No screenshots, no raw input values, no file paths, no URLs
-- See `src/Analyzer.swift:buildPrompt()` for the exact payload
+- App names, element roles, element labels, sanitized window titles, event types, and timestamps
+- No screenshots, no raw text field values, no clipboard content, no passwords, no credentials (scanned and redacted; see `src/CredentialDetector.swift`)
+- No file paths from window titles
 
-Without a key, Patina observes and stores locally. Nothing is sent anywhere.
+**Browser URLs only if you opt in.** With "Capture Browser URLs" off (the default), no URL data is collected or transmitted. With it on, Patina runs a local pass before sending anything to the LLM. URLs from six known hosts are replaced with opaque IDs and the raw URL never leaves your Mac:
 
-The app requests `com.apple.security.network.client` (see `Patina.entitlements`) for the Together AI connection. No other network access.
+- `mail.google.com` → `thread:<id>` (from fragment)
+- `docs.google.com` → `doc:<id>` or `sheet:<id>[/gid:<tab>]`
+- `github.com` → `gh:<owner>/<repo>/pr/<n>` or `.../issue/<n>`
+- `gist.github.com` → `gist:redacted` (the gist ID is an access credential — never emitted)
+- `app.slack.com` → `slack:<team>/<channel>`
+- `notion.so` → `notion:page/<32hex>` (slug dropped)
+
+For URLs from any other host, the sanitized URL (path + fragment kept, query + userinfo dropped) is wrapped in `<url>...</url>` tags in the prompt. The prompt header tells the LLM to treat content inside those tags as untrusted data. See `src/URLEntityExtractor.swift` for the six host rules and `src/Analyzer.swift` for the fence.
+
+macOS exposes the URL bar to accessibility clients regardless of the browser's privacy mode. With URL capture on, Safari Private and Chrome Incognito tabs are read the same as normal tabs.
+
+See `src/Analyzer.swift` `buildPrompt()` for the full payload.
+
+Without any analysis mode configured, Patina observes and stores locally. Nothing is sent anywhere.
+
+The app requests `com.apple.security.network.client` (see `Patina.entitlements`) for the LLM connection. No other network access.
 
 ## Build from source
 
@@ -79,7 +95,8 @@ If you want to avoid the unsigned binary entirely, build from source (section ab
 | `Database.swift` | SQLite storage. Observations, patterns, settings, coverage log. |
 | `Sanitize.swift` | Strips file paths, URLs, emails from text before logging or LLM. |
 | `CredentialDetector.swift` | Detects API keys, JWTs, credit cards, connection strings. Defense in depth. |
-| `Analyzer.swift` | Sends batched observations to Together AI. Parses pattern responses. |
+| `URLEntityExtractor.swift` | Pure function: 6 host rules that reduce Gmail/Docs/Sheets/GitHub/Gist/Slack/Notion URLs to opaque IDs before prompt build. |
+| `Analyzer.swift` | Sends batched observations to Together AI. Parses pattern responses. URL rows are fenced in `<url>...</url>` with a prompt-header instruction to treat the content as untrusted data. |
 | `Notifier.swift` | macOS notifications for detected patterns. Rate-limited to 2/day. |
 | `MenuBar.swift` | Menu bar UI. Stats, pause/resume, patterns, activity log. |
 | `LogViewer.swift` | Activity log window. Search, filter, delete observations. |

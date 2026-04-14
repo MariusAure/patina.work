@@ -14,6 +14,7 @@ In scope:
 - The Cloudflare Pages/Worker code under `site/functions/` in the public repo
 - The macOS app binary distributed from `patina.work`
 - Public source in `github.com/MariusAure/patina.work`
+- Prompt-injection vectors in LLM-bound content — URL entity extraction, `<url>...</url>` fenced rows, window titles, element labels, and anything else that reaches `Analyzer.swift:buildPrompt()` as observation data
 
 Out of scope:
 
