@@ -111,7 +111,7 @@ If you want to avoid the unsigned binary entirely, build from source (section ab
 
 ## Data storage
 
-All data is in `~/Library/Application Support/Patina/patina.db` (SQLite). You can query it directly:
+Observations, patterns, and settings are in `~/Library/Application Support/Patina/patina.db` (SQLite). Your Together AI / BYO API key is stored separately in the macOS login keychain (`service="work.patina"`, managed via the `Security` framework) — not in the SQLite file. You can query the SQLite directly:
 
 ```bash
 sqlite3 ~/Library/Application\ Support/Patina/patina.db \
