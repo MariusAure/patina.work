@@ -28,7 +28,11 @@ Patina reads the accessibility tree to observe which apps you use, what you clic
 
 ## What leaves your Mac
 
-Nothing, until you configure analysis. With a trial, license, or your own API key, the analyzer sends a sanitized observation summary to a cloud LLM (Together AI by default). The summary contains:
+Two things, and one of them is opt-out:
+
+1. **First-launch ping (opt-out, default ON).** When you first grant Accessibility permission, Patina sends one HTTP GET to `patina.work/api/installed?v=<version>`. Cloudflare logs the request IP and country automatically (standard edge log). The checkbox is on by default in the welcome dialog; uncheck it to disable. No retries, no re-pings. We use this to measure how many downloads turn into functional installs.
+
+2. **Pattern analysis (opt-in by analysis mode).** Nothing sent until you pick a mode. With a trial, license, or your own API key, the analyzer sends a sanitized observation summary to a cloud LLM (Together AI by default). The summary contains:
 
 - App names, element roles, element labels, sanitized window titles, event types, and timestamps
 - No screenshots, no raw text field values, no clipboard content, no passwords, no credentials (scanned and redacted; see `src/CredentialDetector.swift`)
