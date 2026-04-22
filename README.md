@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/patina-mark-brass.svg" alt="Patina" width="96" />
+</p>
+
 # Patina
 
 A macOS app that watches how you work, learns your patterns, and tells you when it can do a task for you.
